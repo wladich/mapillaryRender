@@ -12,14 +12,29 @@ import (
 	"time"
 )
 
-func drawPoints(layer *mvt.Layer, surface *cairo.Surface, radius float64, dataToImageScale float64, rasterOffsetX float64, rasterOffsetY float64) {
+var colorNotPano = [3]float64{40. / 255, 150. / 255, 30. / 255}
+var colorPano = [3]float64{0, 100. / 255, 30. / 255}
+
+func drawPoints(
+	layer *mvt.Layer,
+	surface *cairo.Surface,
+	radius float64,
+	dataToImageScale float64,
+	rasterOffsetX float64,
+	rasterOffsetY float64,
+	drawPano bool,
+	drawNotPano bool,
+) {
 	surface.SetLineWidth(radius * 2)
-	surface.SetSourceRGB(0, 100./255., 0)
 	surface.SetLineCap(cairo.LINE_CAP_ROUND)
 
 	var n int32 = 0
 
 	for _, feature := range layer.Features {
+		isPano := feature.Properties.MustBool("is_pano")
+		if (isPano && !drawPano) || (!isPano && !drawNotPano) {
+			continue
+		}
 		geom := feature.Geometry
 		point := geom.(orb.Point)
 		x := point.X()*dataToImageScale + rasterOffsetX
@@ -35,14 +50,26 @@ func drawPoints(layer *mvt.Layer, surface *cairo.Surface, radius float64, dataTo
 	surface.Stroke()
 }
 
-func drawLines(layer *mvt.Layer, surface *cairo.Surface, lineWidth float64, dataToImageScale float64, rasterOffsetX float64, rasterOffsetY float64) {
+func drawLines(
+	layer *mvt.Layer,
+	surface *cairo.Surface,
+	lineWidth float64,
+	dataToImageScale float64,
+	rasterOffsetX float64,
+	rasterOffsetY float64,
+	drawPano bool,
+	drawNotPano bool,
+) {
 	surface.SetLineWidth(lineWidth)
 	surface.SetLineCap(cairo.LINE_CAP_ROUND)
 	surface.SetLineJoin(cairo.LINE_JOIN_ROUND)
-	surface.SetSourceRGB(0, 100./255., 0)
 	var n int32
 
 	for _, feature := range layer.Features {
+		isPano := feature.Properties.MustBool("is_pano")
+		if (isPano && !drawPano) || (!isPano && !drawNotPano) {
+			continue
+		}
 		var lines []orb.LineString
 		geom := feature.Geometry
 		if geom.GeoJSONType() == "LineString" {
@@ -82,11 +109,12 @@ func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX f
 	surface := cairo.NewSurface(cairo.FORMAT_ARGB32, int(tileSize), int(tileSize))
 	defer surface.Finish()
 	surface.SetAntialias(4) // CAIRO_ANTIALIAS_FAST = 4
+	surface.SetSourceRGB(colorNotPano[0], colorNotPano[1], colorNotPano[2])
 	for _, layer := range layers {
 		dataToImageScale := float64(tileSize*dataScale) / float64(layer.Extent)
 		switch layer.Name {
 		case "overview":
-			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY)
+			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, true, true)
 		case "sequence":
 			var lineWidth float64
 			if detailed {
@@ -94,9 +122,27 @@ func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX f
 			} else {
 				lineWidth = 6
 			}
-			drawLines(layer, surface, lineWidth, dataToImageScale, offsetX, offsetY)
+			drawLines(layer, surface, lineWidth, dataToImageScale, offsetX, offsetY, false, true)
 		case "image":
-			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY)
+			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, false, true)
+		default:
+			continue
+		}
+	}
+	surface.SetSourceRGB(colorPano[0], colorPano[1], colorPano[2])
+	for _, layer := range layers {
+		dataToImageScale := float64(tileSize*dataScale) / float64(layer.Extent)
+		switch layer.Name {
+		case "sequence":
+			var lineWidth float64
+			if detailed {
+				lineWidth = 2
+			} else {
+				lineWidth = 6
+			}
+			drawLines(layer, surface, lineWidth, dataToImageScale, offsetX, offsetY, true, false)
+		case "image":
+			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, true, false)
 		default:
 			continue
 		}
