@@ -46,6 +46,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	resp.Header().Add("content-type", "image/png")
+	resp.Header().Add("content-length", strconv.Itoa(len(imageData)))
 	resp.Write(imageData)
 }
 
