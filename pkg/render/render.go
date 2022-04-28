@@ -36,6 +36,9 @@ func drawPoints(
 			continue
 		}
 		geom := feature.Geometry
+		if geom.GeoJSONType() != "Point" {
+			continue
+		}
 		point := geom.(orb.Point)
 		x := point.X()*dataToImageScale + rasterOffsetX
 		y := point.Y()*dataToImageScale + rasterOffsetY
@@ -74,8 +77,10 @@ func drawLines(
 		geom := feature.Geometry
 		if geom.GeoJSONType() == "LineString" {
 			lines = append(lines, geom.(orb.LineString))
-		} else {
+		} else if geom.GeoJSONType() == "MultiLineString" {
 			lines = geom.(orb.MultiLineString)
+		} else {
+			continue
 		}
 
 		for _, line := range lines {
