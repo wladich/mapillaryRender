@@ -160,6 +160,38 @@ func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX f
 	return res, nil
 }
 
+func downloadData(url string) ([]byte, error) {
+	const timeout = 15 * time.Second
+
+	client := http.Client{Timeout: timeout}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP error %d for %s", resp.StatusCode, url)
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func downloadDataWithRetries(url string) ([]byte, error) {
+	const retries = 3
+	var err error
+	var data []byte
+	for i := 0; i < retries; i++ {
+		data, err = downloadData(url)
+		if err == nil {
+			return data, nil
+		}
+	}
+	return nil, err
+}
+
 // Tile fetches mvt tile from server and renders an image
 func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiAccessToken string) ([]byte, error) {
 	if !tileInd.Valid() {
@@ -187,16 +219,7 @@ func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiAccessToken s
 	if apiAccessToken != "" {
 		url += fmt.Sprintf("?access_token=%s", apiAccessToken)
 	}
-	client := http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("request for MVT tileInd returned HTTP error %d", resp.StatusCode)
-	}
-	mvtData, err := ioutil.ReadAll(resp.Body)
+	mvtData, err := downloadDataWithRetries(url)
 	if err != nil {
 		return nil, err
 	}
