@@ -193,7 +193,7 @@ func downloadDataWithRetries(url string) ([]byte, error) {
 }
 
 // Tile fetches mvt tile from server and renders an image
-func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiAccessToken string) ([]byte, error) {
+func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiURLZ14 string, apiAccessToken string) ([]byte, error) {
 	if !tileInd.Valid() {
 		return nil, errors.New("invalid tileInd index")
 	}
@@ -215,7 +215,13 @@ func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiAccessToken s
 		offsetX = float64(-tileSize * (tileInd.X - dataX*dataScale))
 		offsetY = float64(-tileSize * (tileInd.Y - dataY*dataScale))
 	}
-	url := fmt.Sprintf("%s/%d/%d/%d", apiURL, dataZ, dataX, dataY)
+	var baseURL string
+	if dataZ == 14 {
+		baseURL = apiURLZ14
+	} else {
+		baseURL = apiURL
+	}
+	url := fmt.Sprintf("%s/%d/%d/%d", baseURL, dataZ, dataX, dataY)
 	if apiAccessToken != "" {
 		url += fmt.Sprintf("?access_token=%s", apiAccessToken)
 	}

@@ -37,7 +37,7 @@ func main() {
 	if !tile.Valid() {
 		exitWithWrongArgs("Invalid tile index")
 	}
-	imageData, err := render.Tile(tile, uint32(*tileSize), *apiBaseURL, *accessToken)
+	imageData, err := render.Tile(tile, uint32(*tileSize), *apiBaseURL, *apiBaseURL, *accessToken)
 	if err != nil {
 		panic(err)
 	}

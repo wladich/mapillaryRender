@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-var apiBaseURL, accessToken string
+var apiBaseURL, apiBaseURLZ14, accessToken string
 
 const tileSize = 1024
 
@@ -39,7 +39,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request) {
 		http.NotFound(resp, req)
 		return
 	}
-	imageData, err := render.Tile(tile, tileSize, apiBaseURL, accessToken)
+	imageData, err := render.Tile(tile, tileSize, apiBaseURL, apiBaseURLZ14, accessToken)
 	if err != nil {
 		http.Error(resp, "Server error", http.StatusInternalServerError)
 		log.Printf("Error rendering tile: %v", err)
@@ -69,10 +69,15 @@ func main() {
 	host := flag.String("host", "127.0.0.1", "address to bind to")
 	maxClients := flag.Int("threads", 1, "maximum number of concurrently served requests")
 	flag.StringVar(&apiBaseURL, "api", "https://tiles.mapillary.com/maps/vtp/mly1_public/2", "Base API URL")
+	flag.StringVar(&apiBaseURLZ14, "api-z14", "", "Base API URL for detailed level (z=14).Default is same as -api")
 	flag.StringVar(&accessToken, "token", "", "Mapillary access token")
 	flag.Parse()
 
-	log.Printf("Starting server with parameter: host=%v, port=%v, maxClients=%v", *host, *port, *maxClients)
+	if len(apiBaseURLZ14) == 0 {
+		apiBaseURLZ14 = apiBaseURL
+	}
+	log.Printf("Starting server with parameter: host=%v, port=%v, maxClients=%v",
+		*host, *port, *maxClients)
 	http.HandleFunc("/", limitNumClients(handleRequest, *maxClients))
 	log.Printf("Serving at %s:%d", *host, *port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil))
