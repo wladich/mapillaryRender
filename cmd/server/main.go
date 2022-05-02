@@ -67,7 +67,9 @@ func limitNumClients(f http.HandlerFunc, maxClients int) http.HandlerFunc {
 func main() {
 	port := flag.Int("port", 8080, "port to listen")
 	host := flag.String("host", "127.0.0.1", "address to bind to")
-	maxClients := flag.Int("threads", 1, "maximum number of concurrently served requests")
+	maxClients := flag.Int("clients", 1, "maximum number of concurrently served requests")
+	maxNetworkJobs := flag.Int("net-jobs", 1, "maximum number simultaneous data requests")
+	maxCPUJobs := flag.Int("cpu-jobs", 1, "maximum number of simultaneous rendering jobs")
 	flag.StringVar(&apiBaseURL, "api", "https://tiles.mapillary.com/maps/vtp/mly1_public/2", "Base API URL")
 	flag.StringVar(&apiBaseURLZ14, "api-z14", "", "Base API URL for detailed level (z=14).Default is same as -api")
 	flag.StringVar(&accessToken, "token", "", "Mapillary access token")
@@ -78,6 +80,8 @@ func main() {
 	}
 	log.Printf("Starting server with parameter: host=%v, port=%v, maxClients=%v",
 		*host, *port, *maxClients)
+	render.SetMaxCPUJobs(*maxCPUJobs)
+	render.SetMaxNetworkJobs(*maxNetworkJobs)
 	http.HandleFunc("/", limitNumClients(handleRequest, *maxClients))
 	log.Printf("Serving at %s:%d", *host, *port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil))

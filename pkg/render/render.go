@@ -12,6 +12,9 @@ import (
 	"time"
 )
 
+var semaphoreNetwork chan struct{}
+var semaphoreCPU chan struct{}
+
 var colorNotPano = [3]float64{40. / 255, 150. / 255, 30. / 255}
 var colorPano = [3]float64{0, 100. / 255, 30. / 255}
 
@@ -214,7 +217,13 @@ func downloadDataWithRetries(url string) ([]byte, error) {
 }
 
 // Tile fetches mvt tile from server and renders an image
-func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiURLZ14 string, apiAccessToken string) ([]byte, error) {
+func Tile(
+	tileInd maptile.Tile,
+	tileSize uint32,
+	apiURL string,
+	apiURLZ14 string,
+	apiAccessToken string,
+) ([]byte, error) {
 	if !tileInd.Valid() {
 		return nil, errors.New("invalid tileInd index")
 	}
@@ -246,9 +255,37 @@ func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiURLZ14 string
 	if apiAccessToken != "" {
 		url += fmt.Sprintf("?access_token=%s", apiAccessToken)
 	}
+	if semaphoreNetwork != nil {
+		semaphoreNetwork <- struct{}{}
+	}
 	mvtData, err := downloadDataWithRetries(url)
+	if semaphoreNetwork != nil {
+		<-semaphoreNetwork
+	}
 	if err != nil {
 		return nil, err
 	}
+	if semaphoreCPU != nil {
+		semaphoreCPU <- struct{}{}
+	}
+	if semaphoreCPU != nil {
+		defer func() { <-semaphoreCPU }()
+	}
 	return renderFromMvt(&mvtData, tileSize, dataScale, offsetX, offsetY, dataZ == 14, tileInd.Z > 14)
+}
+
+// SetMaxNetworkJobs - call to limit number of simultaneous data requests
+func SetMaxNetworkJobs(n int) {
+	if semaphoreNetwork != nil {
+		panic("SetMaxNetworkJobs can not be called repeatedly")
+	}
+	semaphoreNetwork = make(chan struct{}, n)
+}
+
+// SetMaxCPUJobs - call to limit number of simultaneous rendering jobs
+func SetMaxCPUJobs(n int) {
+	if semaphoreCPU != nil {
+		panic("SetMaxCPUJobs can not be called repeatedly")
+	}
+	semaphoreCPU = make(chan struct{}, n)
 }
