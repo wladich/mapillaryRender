@@ -24,11 +24,17 @@ func drawPoints(
 	rasterOffsetY float64,
 	drawPano bool,
 	drawNotPano bool,
+	overZoom bool,
 ) {
 	surface.SetLineWidth(radius * 2)
 	surface.SetLineCap(cairo.LINE_CAP_ROUND)
 
 	var n int32 = 0
+
+	minX := -radius - 1
+	minY := -radius - 1
+	maxX := float64(surface.GetWidth()) + radius
+	maxY := float64(surface.GetHeight()) + radius
 
 	for _, feature := range layer.Features {
 		isPano := feature.Properties.MustBool("is_pano")
@@ -42,12 +48,14 @@ func drawPoints(
 		point := geom.(orb.Point)
 		x := point.X()*dataToImageScale + rasterOffsetX
 		y := point.Y()*dataToImageScale + rasterOffsetY
-		surface.MoveTo(x, y)
-		surface.LineTo(x, y)
-		n++
-		if n > 100 {
-			surface.Stroke()
-			n = 0
+		if !overZoom || (x <= maxX && x >= minX && y <= maxY && y >= minY) {
+			surface.MoveTo(x, y)
+			surface.LineTo(x, y)
+			n++
+			if n > 100 {
+				surface.Stroke()
+				n = 0
+			}
 		}
 	}
 	surface.Stroke()
@@ -62,7 +70,17 @@ func drawLines(
 	rasterOffsetY float64,
 	drawPano bool,
 	drawNotPano bool,
+	overZoom bool,
 ) {
+	minX := -lineWidth/2 - 1
+	minY := -lineWidth/2 - 1
+	maxX := float64(surface.GetWidth()) + lineWidth/2
+	maxY := float64(surface.GetHeight()) + lineWidth/2
+
+	tileDataBounds := orb.Bound{
+		Min: orb.Point{(minX - rasterOffsetX) / dataToImageScale, (minY - rasterOffsetY) / dataToImageScale},
+		Max: orb.Point{(maxX - rasterOffsetX) / dataToImageScale, (maxY - rasterOffsetY) / dataToImageScale},
+	}
 	surface.SetLineWidth(lineWidth)
 	surface.SetLineCap(cairo.LINE_CAP_ROUND)
 	surface.SetLineJoin(cairo.LINE_JOIN_ROUND)
@@ -88,6 +106,9 @@ func drawLines(
 			if lineLen == 0 {
 				continue
 			}
+			if overZoom && !line.Bound().Intersects(tileDataBounds) {
+				continue
+			}
 			pt := line[0]
 			surface.MoveTo(pt.X()*dataToImageScale+rasterOffsetX, pt.Y()*dataToImageScale+rasterOffsetY)
 			if lineLen > 1 {
@@ -106,7 +127,7 @@ func drawLines(
 	surface.Stroke()
 }
 
-func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX float64, offsetY float64, detailed bool) ([]byte, error) {
+func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX float64, offsetY float64, detailed bool, overZoom bool) ([]byte, error) {
 	layers, err := mvt.Unmarshal(*mvtData)
 	if err != nil {
 		return nil, err
@@ -119,7 +140,7 @@ func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX f
 		dataToImageScale := float64(tileSize*dataScale) / float64(layer.Extent)
 		switch layer.Name {
 		case "overview":
-			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, true, true)
+			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, true, true, false)
 		case "sequence":
 			var lineWidth float64
 			if detailed {
@@ -127,9 +148,9 @@ func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX f
 			} else {
 				lineWidth = 6
 			}
-			drawLines(layer, surface, lineWidth, dataToImageScale, offsetX, offsetY, false, true)
+			drawLines(layer, surface, lineWidth, dataToImageScale, offsetX, offsetY, false, true, overZoom)
 		case "image":
-			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, false, true)
+			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, false, true, overZoom)
 		default:
 			continue
 		}
@@ -145,9 +166,9 @@ func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX f
 			} else {
 				lineWidth = 6
 			}
-			drawLines(layer, surface, lineWidth, dataToImageScale, offsetX, offsetY, true, false)
+			drawLines(layer, surface, lineWidth, dataToImageScale, offsetX, offsetY, true, false, overZoom)
 		case "image":
-			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, true, false)
+			drawPoints(layer, surface, 6, dataToImageScale, offsetX, offsetY, true, false, overZoom)
 		default:
 			continue
 		}
@@ -229,5 +250,5 @@ func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiURLZ14 string
 	if err != nil {
 		return nil, err
 	}
-	return renderFromMvt(&mvtData, tileSize, dataScale, offsetX, offsetY, dataZ == 14)
+	return renderFromMvt(&mvtData, tileSize, dataScale, offsetX, offsetY, dataZ == 14, tileInd.Z > 14)
 }
