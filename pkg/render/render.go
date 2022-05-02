@@ -212,8 +212,8 @@ func Tile(tileInd maptile.Tile, tileSize uint32, apiURL string, apiURLZ14 string
 		dataZ = 14
 		dataX /= dataScale
 		dataY /= dataScale
-		offsetX = float64(-tileSize * (tileInd.X - dataX*dataScale))
-		offsetY = float64(-tileSize * (tileInd.Y - dataY*dataScale))
+		offsetX = -float64(tileSize) * (float64(tileInd.X) - float64(dataX*dataScale))
+		offsetY = -float64(tileSize) * (float64(tileInd.Y) - float64(dataY*dataScale))
 	}
 	var baseURL string
 	if dataZ == 14 {
