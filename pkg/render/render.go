@@ -187,14 +187,19 @@ func renderFromMvt(mvtData *[]byte, tileSize uint32, dataScale uint32, offsetX f
 func downloadData(url string) ([]byte, error) {
 	const timeout = 15 * time.Second
 
-	client := http.Client{Timeout: timeout}
+	client := http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("HTTP error %d for %s", resp.StatusCode, url)
+		return nil, fmt.Errorf("HTTP status %d for %s", resp.StatusCode, url)
 	}
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
