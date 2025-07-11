@@ -14,6 +14,7 @@ import (
 
 var semaphoreNetwork chan struct{}
 var semaphoreCPU chan struct{}
+var maxNetworkRequestRetries = 1
 
 var colorNotPano = [3]float64{40. / 255, 150. / 255, 30. / 255}
 var colorPano = [3]float64{0, 100. / 255, 30. / 255}
@@ -209,10 +210,9 @@ func downloadData(url string) ([]byte, error) {
 }
 
 func downloadDataWithRetries(url string) ([]byte, error) {
-	const retries = 3
 	var err error
 	var data []byte
-	for i := 0; i < retries; i++ {
+	for i := 0; i < maxNetworkRequestRetries; i++ {
 		data, err = downloadData(url)
 		if err == nil {
 			return data, nil
@@ -293,4 +293,9 @@ func SetMaxCPUJobs(n int) {
 		panic("SetMaxCPUJobs can not be called repeatedly")
 	}
 	semaphoreCPU = make(chan struct{}, n)
+}
+
+// SetMaxNetworkRequestRetries - set number of HTTP request retries
+func SetMaxNetworkRequestRetries(n int) {
+	maxNetworkRequestRetries = n
 }
